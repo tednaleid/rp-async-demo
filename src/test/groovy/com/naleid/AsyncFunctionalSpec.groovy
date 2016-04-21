@@ -48,13 +48,12 @@ class AsyncFunctionalSpec extends Specification {
         aut.close()
     }
 
-    def "test async observable get"() {
+    def "test async observable parallel get is executed more quickly than others"() {
         when:
-        get("/observable")
+        get("/observableParallel")
 
         then:
-
-        Long waitTimeSum = ObservableHandler.WAIT_TIMES.sum() as Long
+        Long waitTimeSum = ParallelObservableHandler.WAIT_TIMES.sum() as Long
         Long totalTestTime = System.currentTimeMillis() - startTime
 
         response.statusCode == 200
@@ -62,7 +61,21 @@ class AsyncFunctionalSpec extends Specification {
         totalTestTime < waitTimeSum
     }
 
-    def "test async promise get"() {
+
+    def "test async observable get is executed serially so takes longer than the sum of the wait times"() {
+        when:
+        get("/observable")
+
+        then:
+        Long waitTimeSum = ObservableHandler.WAIT_TIMES.sum() as Long
+        Long totalTestTime = System.currentTimeMillis() - startTime
+
+        response.statusCode == 200
+        response.body.text == 'waited for ' + waitTimeSum
+        totalTestTime >= waitTimeSum
+    }
+
+    def "test async promise get is executed serially so takes longer than the sum of the wait times"() {
         when:
         get("/promise")
 
@@ -72,6 +85,6 @@ class AsyncFunctionalSpec extends Specification {
 
         response.statusCode == 200
         response.body.text == 'waited for ' + waitTimeSum
-        totalTestTime < waitTimeSum
+        totalTestTime >= waitTimeSum
     }
 }
