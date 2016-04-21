@@ -13,7 +13,7 @@ import rx.Observable
 
 @CompileStatic
 class PromiseHandler extends GroovyHandler {
-    public static final List<Integer> WAIT_TIMES = [1000, 3000, 3500]
+    public static final List<Integer> WAIT_TIMES = [1000, 1100, 1200]
 
     @Inject
     AppProperties appProperties
