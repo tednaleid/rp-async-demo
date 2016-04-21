@@ -1,0 +1,25 @@
+buildscript {
+  repositories {
+    jcenter()
+  }
+  dependencies {
+    classpath "io.ratpack:ratpack-gradle:1.2.0"
+    //classpath "com.github.jengelman.gradle.plugins:shadow:1.2.2"
+
+  }
+}
+
+apply plugin: "io.ratpack.ratpack-groovy"
+//apply plugin: "com.github.johnrengelman.shadow"
+apply plugin: "idea"
+
+repositories {
+  jcenter()
+}
+
+dependencies {
+  runtime 'org.slf4j:slf4j-simple:1.7.12'
+  testRuntime "cglib:cglib-nodep:2.2.2"
+  testCompile "org.spockframework:spock-core:1.0-groovy-2.4"
+  compile ratpack.dependency("rx")
+}
