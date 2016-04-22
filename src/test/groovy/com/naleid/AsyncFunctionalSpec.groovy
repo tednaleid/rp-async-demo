@@ -25,6 +25,7 @@ class AsyncFunctionalSpec extends Specification {
             get(":sleepFor") {
                 Integer sleepFor = context.pathTokens['sleepFor'].toInteger() ?: 1000
                 Blocking.exec { ->
+                    println "request received for: $sleepFor"
                     sleep(sleepFor)
                     context.render sleepFor.toString()
                 }

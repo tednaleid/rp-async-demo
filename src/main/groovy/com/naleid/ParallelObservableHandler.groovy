@@ -13,7 +13,7 @@ import rx.Observable
 @CompileStatic
 class ParallelObservableHandler extends GroovyHandler {
     // list of milliseconds that each request will ask the other service to sleep for before returning
-    public static final List<Integer> WAIT_TIMES = (1..20000).reverse().asList()
+    public static final List<Integer> WAIT_TIMES = (2000..1000).asList()
 
     @Inject
     AppProperties appProperties
@@ -46,6 +46,7 @@ class ParallelObservableHandler extends GroovyHandler {
 
     Observable<Integer> waitTimeRequest(Integer waitTime) {
         URI uri = createUri(waitTime)
+        println "Thread: ${Thread.currentThread().name}: wait time request: $waitTime"
 
         return RxRatpack.observe(httpClient.get(uri)).map { ReceivedResponse response ->
             Integer val = response.body.text.toInteger()
