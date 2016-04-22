@@ -37,13 +37,11 @@ class ParallelObservableHandler extends GroovyHandler {
     }
 
     Observable<Integer> makeSomeObservableCallsInParallel() {
-        Observable.from(WAIT_TIMES.collect { waitTimeRequest(it) })
+        Observable.from(WAIT_TIMES)
                 .forkEach()
-                .flatMap { it }
-                .reduce { Integer acc, Integer val ->
-                    println "Thread: ${Thread.currentThread().name}: adding $val"
-                    acc + val
-                }
+                .flatMap(this.&waitTimeRequest)
+                .doOnNext { println "Thread: ${Thread.currentThread().name}: adding $it" }
+                .reduce(0) { Integer acc, Integer val -> acc + val }
     }
 
     Observable<Integer> waitTimeRequest(Integer waitTime) {
