@@ -13,7 +13,7 @@ import rx.Observable
 @CompileStatic
 class ParallelObservableHandler extends GroovyHandler {
     // list of milliseconds that each request will ask the other service to sleep for before returning
-    public static final List<Integer> WAIT_TIMES = (1..200).collect { 100 }.asList()
+    public static final List<Integer> WAIT_TIMES = (1..20000).reverse().asList()
 
     @Inject
     AppProperties appProperties

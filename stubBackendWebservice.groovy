@@ -1,4 +1,6 @@
 #! /usr/bin/env groovy
+import ratpack.exec.Blocking
+
 @Grapes([
         @Grab('io.ratpack:ratpack-groovy:1.2.0'),
         @Grab('org.slf4j:slf4j-simple:1.7.12')
@@ -15,8 +17,10 @@ ratpack {
         }
         get(":sleepFor") {
             Integer sleepFor = context.pathTokens['sleepFor'].toInteger() ?: 1000
-            sleep(sleepFor)
-            context.render sleepFor.toString()
+            Blocking.exec { ->
+                sleep(sleepFor)
+                context.render sleepFor.toString()
+            }
         }
     }
 }

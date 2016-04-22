@@ -1,5 +1,6 @@
 package com.naleid
 
+import ratpack.exec.Blocking
 import ratpack.groovy.test.embed.GroovyEmbeddedApp
 import ratpack.registry.Registry
 import ratpack.test.embed.EmbeddedApp
@@ -23,8 +24,10 @@ class AsyncFunctionalSpec extends Specification {
         handlers {
             get(":sleepFor") {
                 Integer sleepFor = context.pathTokens['sleepFor'].toInteger() ?: 1000
-                sleep(sleepFor)
-                context.render sleepFor.toString()
+                Blocking.exec { ->
+                    sleep(sleepFor)
+                    context.render sleepFor.toString()
+                }
             }
         }
     }
