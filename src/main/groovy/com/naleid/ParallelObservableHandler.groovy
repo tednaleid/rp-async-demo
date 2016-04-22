@@ -37,15 +37,10 @@ class ParallelObservableHandler extends GroovyHandler {
     }
 
     Observable<Integer> makeSomeObservableCallsInParallel() {
-        List<Observable<Integer>> listOfObservableWaitTimeRequests = WAIT_TIMES.collect { waitTimeRequest(it) }
-
-        Observable<Integer> parallelWaitTimeRequests = Observable.from(listOfObservableWaitTimeRequests)
-//                .flatMap { it } // flatMap here does _not_ what you want it to, have to do it below
-                .compose(RxRatpack.&forkEach as Observable.Transformer)
-                .flatMap { it } // needed to flatten from Observable<Observable<Integer>> to just Observable<Integer>
-
-        parallelWaitTimeRequests
-                .reduce(0) { Integer acc, Integer val ->
+        Observable.from(WAIT_TIMES.collect { waitTimeRequest(it) })
+                .forkEach()
+                .flatMap { it }
+                .reduce { Integer acc, Integer val ->
                     println "Thread: ${Thread.currentThread().name}: adding $val"
                     acc + val
                 }
