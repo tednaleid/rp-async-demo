@@ -10,7 +10,6 @@ import static ratpack.groovy.Groovy.ratpack
 
 ratpack {
     serverConfig {
-        development false
         threads 8
     }
     bindings {
