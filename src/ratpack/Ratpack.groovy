@@ -9,6 +9,10 @@ import ratpack.server.StartEvent
 import static ratpack.groovy.Groovy.ratpack
 
 ratpack {
+    serverConfig {
+        development false
+        threads 8
+    }
     bindings {
         module(AppModule)
         bindInstance Service, new Service() {
