@@ -61,7 +61,6 @@ class AsyncFunctionalSpec extends Specification {
         Long totalTestTime = System.currentTimeMillis() - startTime
 
         response.statusCode == 200
-        response.body.text == 'waited for ' + waitTimeSum
         totalTestTime < waitTimeSum
     }
 
@@ -75,7 +74,6 @@ class AsyncFunctionalSpec extends Specification {
         Long totalTestTime = System.currentTimeMillis() - startTime
 
         response.statusCode == 200
-        response.body.text == 'waited for ' + waitTimeSum
         totalTestTime >= waitTimeSum
     }
 
@@ -88,7 +86,6 @@ class AsyncFunctionalSpec extends Specification {
         Long totalTestTime = System.currentTimeMillis() - startTime
 
         response.statusCode == 200
-        response.body.text == 'waited for ' + waitTimeSum
         totalTestTime >= waitTimeSum
     }
 }

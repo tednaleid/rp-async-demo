@@ -22,6 +22,7 @@ class ObservableHandler extends GroovyHandler {
 
     @Override
     protected void handle(GroovyContext context) {
+        println "Handle Thread: ${Thread.currentThread().name}"
         context.byContent {
             json {
                 makeSomeObservableCalls()

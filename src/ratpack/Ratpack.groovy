@@ -21,7 +21,7 @@ ratpack {
 
     handlers {
         get {
-            render "Go to http://localhost:5050/observable or http://localhost:5050/promise"
+            render "Go to http://localhost:5050/observable or http://localhost:5050/promise for serial async, http://localhost:5050/observableParallel for parallel async"
         }
         get "observableParallel", registry.get(ParallelObservableHandler)
         get "observable", registry.get(ObservableHandler)
