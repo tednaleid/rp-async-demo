@@ -23,17 +23,13 @@ class ObservableHandler extends GroovyHandler {
     @Override
     protected void handle(GroovyContext context) {
         println "Handle Thread: ${Thread.currentThread().name}"
-        context.byContent {
-            json {
-                makeSomeObservableCalls()
-                    .single()
-                    .subscribe { Integer sumOfWaiting ->
-                        println "Thread: ${Thread.currentThread().name}"
-                        println "waited for $sumOfWaiting"
-                        context.render "waited for $sumOfWaiting"
-                    }
+        makeSomeObservableCalls()
+            .single()
+            .subscribe { Integer sumOfWaiting ->
+                println "Thread: ${Thread.currentThread().name}"
+                println "waited for $sumOfWaiting"
+                context.render "waited for $sumOfWaiting"
             }
-        }
     }
 
     Observable<Integer> makeSomeObservableCalls() {

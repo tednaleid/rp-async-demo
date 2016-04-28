@@ -11,59 +11,74 @@ import rx.Observable
 @GrabExclude('org.codehaus.groovy:groovy-all')
 @Grab('org.slf4j:slf4j-simple:1.7.12')
 
-// works fine with RP 1.2
-@Grab('io.ratpack:ratpack-groovy:1.2.0')
-@Grab('io.ratpack:ratpack-rx:1.2.0')
-@Grab('io.ratpack:ratpack-groovy-test:1.2.0')
+@Grab('io.ratpack:ratpack-groovy:1.3.0')
+@Grab('io.ratpack:ratpack-rx:1.3.0')
+@Grab('io.ratpack:ratpack-groovy-test:1.3.0')
 
-// fails with RP 1.3 with "java.io.IOException: Connection reset by peer"
-//@Grab('io.ratpack:ratpack-groovy:1.3.0')
-//@Grab('io.ratpack:ratpack-rx:1.3.0')
-//@Grab('io.ratpack:ratpack-groovy-test:1.3.0')
-
-// stub application that sleeps for the number of milliseconds in the path you give it
-// ex: http://localhost:<port>/2000  sleeps for 2 seconds before returning
+// stub application that sleeps for the number of seconds in the path you give it
+// ex: http://localhost:<port>/2  sleeps for 2 seconds before returning the value "2"
 EmbeddedApp stubApp = GroovyEmbeddedApp.of {
-    handlers {
-        get(":sleepFor") {
-            Integer sleepFor = context.pathTokens['sleepFor'].toInteger() ?: 1000
-            Blocking.exec { ->
-                sleep(sleepFor)
-                context.render sleepFor.toString()
-            }
-        }
+  handlers {
+    get(":sleepFor") {
+      Integer sleepFor = context.pathTokens['sleepFor'].toInteger() ?: 1
+      Blocking.exec { ->
+        sleep(sleepFor * 1000)
+        context.render sleepFor.toString()
+      }
     }
+  }
 }
 
-final List<Integer> SLEEP_TIMES = (1..2000).collect { 100 }
+// create a List of URIs to the stub app above that will ask it to sleep
+// for N seconds before returning the number of seconds it was asked to sleep
+final List<URI> REQUEST_SLEEP_URIS = [3, 2, 1].collect {
+  URI.create("http://${stubApp.address.host}:${stubApp.address.port}/${it}")
+}
 final Long startTime = System.currentTimeMillis()
 
 GroovyEmbeddedApp.of {
-    handlers {
-        all { Context context ->
-            HttpClient httpClient = context.get(HttpClient)
+  handlers {
+    all { Context context ->
+      HttpClient httpClient = context.get(HttpClient)
 
-            Observable.from(SLEEP_TIMES)
-                    .forkEach()  // fork execution across ratpack-compute threads
-                    .flatMap {   // async get request to stub app that sleeps for `it` milliseconds before returning
-                        URI uri = URI.create("http://${stubApp.address.host}:${stubApp.address.port}/${it}")
-                        RxRatpack.observe(httpClient.get(uri)).map { it.body.text.toInteger() }
-                    }
-                    .bindExec()  // join forked executions back to original ratpack-compute thread
-                    .reduce(0) { Integer acc, Integer val -> acc + val }  // sum up all sleep times
-                    .single()
-                    .subscribe({ Integer cumulativeSleepTime ->
-                        Long totalTime = System.currentTimeMillis() - startTime
-                        context.render "Total time: ${totalTime/1000}s, if run serially would have been: ${cumulativeSleepTime/1000}s"
-                    })
-        }
+      println "Original thread: ${Thread.currentThread().name}"
+
+      // default serial async version
+      Observable.from(REQUEST_SLEEP_URIS)
+              .doOnNext { println "Async GET (${it}) thread: ${Thread.currentThread().name}" }
+              .flatMap { uri -> RxRatpack.observe(httpClient.get(uri)) }
+              .map { result -> result.body.text.toInteger() }
+              .doOnNext { println "Reduce result (${it}) thread: ${Thread.currentThread().name}" }
+              .reduce(0) { acc, val -> acc + val }  // sum up all sleep times
+              .single()
+              .subscribe({ Integer sum ->
+                println "Subscribe thread: ${Thread.currentThread().name}"
+                context.render sum.toString() // render out cumulative sleep time
+              })
+
+      // parallel async version using forkEach/bindExec
+//      Observable.from(REQUEST_SLEEP_URIS)
+//          .forkEach()  // fork execution across ratpack-compute threads
+//          .doOnNext { println "Async GET (${it}) thread: ${Thread.currentThread().name}" }
+//          .flatMap { uri -> RxRatpack.observe(httpClient.get(uri)) }
+//          .map { result -> result.body.text.toInteger() }
+//          .bindExec()  // join forked executions back to original ratpack-compute thread
+//          .doOnNext { println "Reduce result (${it}) thread: ${Thread.currentThread().name}" }
+//          .reduce(0) { acc, val -> acc + val }  // sum up all sleep times
+//          .single()
+//          .subscribe({ Integer sum ->
+//            println "Subscribe thread: ${Thread.currentThread().name}"
+//            context.render sum.toString() // render out cumulative sleep time
+//          })
     }
+  }
 }.test {
-    String bodyText = getText()
-    assert response.status.code == 200
-    assert System.currentTimeMillis() - startTime <= SLEEP_TIMES.sum()
-    println bodyText
-    System.exit(0)
+  Integer cumulativeSleepTime = getText().toInteger()
+  assert response.status.code == 200
+
+  final BigDecimal totalTime = (System.currentTimeMillis() - startTime)/1000
+  println "Total time: ${totalTime}s, if run serially would have been >= ${cumulativeSleepTime}s"
+  System.exit(0)
 }
 
 

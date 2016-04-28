@@ -10,12 +10,13 @@ import ratpack.http.client.ReceivedResponse
 import ratpack.rx.RxRatpack
 import rx.Observable
 import rx.functions.Action1
+import rx.functions.Func1
 
 @CompileStatic
 class ParallelObservableHandler extends GroovyHandler {
 
     // list of milliseconds that each request will ask the other service to sleep for before returning
-    public static final List<Integer> WAIT_TIMES = (1..200).collect { 100 }
+    public static final List<Integer> WAIT_TIMES = (1..10).collect { 1000 }
 
     @Inject
     AppProperties appProperties
@@ -26,25 +27,21 @@ class ParallelObservableHandler extends GroovyHandler {
     @Override
     protected void handle(GroovyContext context) {
         println "Handle Thread: ${Thread.currentThread().name}"
-        context.byContent {
-            json {
-                Long timeMillis = System.currentTimeMillis()
-                makeSomeObservableCallsInParallel()
-                    .single()
-                    .subscribe({ Integer sumOfWaiting ->
-                        Long totalTime = System.currentTimeMillis() - timeMillis
-                        println "Thread: ${Thread.currentThread().name}: real time: ${totalTime}ms"
-                        println "Thread: ${Thread.currentThread().name}: serial time would have been: ${sumOfWaiting}ms"
-                        context.render "Total time: ${totalTime/1000}s, if run serially would have been: ${sumOfWaiting/1000}s"
-                    } as Action1)
-            }
-        }
+        Long timeMillis = System.currentTimeMillis()
+        makeSomeObservableCallsInParallel()
+            .single()
+            .subscribe({ Integer sumOfWaiting ->
+                Long totalTime = System.currentTimeMillis() - timeMillis
+                println "Thread: ${Thread.currentThread().name}: real time: ${totalTime}ms"
+                println "Thread: ${Thread.currentThread().name}: serial time would have been: ${sumOfWaiting}ms"
+                context.render "Total time: ${totalTime/1000}s, if run serially would have been: ${sumOfWaiting/1000}s"
+            } as Action1)
     }
 
     Observable<Integer> makeSomeObservableCallsInParallel() {
         Observable.from(WAIT_TIMES)
                 .forkEach()
-                .flatMap(this.&waitTimeRequest)
+                .flatMap(this.&waitTimeRequest as Func1)
                 .doOnNext { println "Forked Thread: ${Thread.currentThread().name}: adding $it" }
                 .bindExec()
                 .doOnNext { println "Joined Thread: ${Thread.currentThread().name}: adding $it" }

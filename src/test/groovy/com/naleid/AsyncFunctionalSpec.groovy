@@ -25,7 +25,7 @@ class AsyncFunctionalSpec extends Specification {
             get(":sleepFor") {
                 Integer sleepFor = context.pathTokens['sleepFor'].toInteger() ?: 1000
                 Blocking.exec { ->
-                    println "request received for: $sleepFor"
+//                    println "request received for: $sleepFor"
                     sleep(sleepFor)
                     context.render sleepFor.toString()
                 }
@@ -50,6 +50,15 @@ class AsyncFunctionalSpec extends Specification {
 
     def cleanupSpec() {
         aut.close()
+    }
+
+    def "test fork handler does things on different threads"() {
+        when:
+        get("/fork")
+
+        then:
+        response.statusCode == 200
+        response.body.text == "hello from fork"
     }
 
     def "test async observable parallel get is executed more quickly than others"() {

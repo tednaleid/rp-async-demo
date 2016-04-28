@@ -24,14 +24,10 @@ class PromiseHandler extends GroovyHandler {
     @Override
     protected void handle(GroovyContext context) {
         println "Handle Thread: ${Thread.currentThread().name}"
-        context.byContent {
-            json {
-                makeSomePromiseCalls().then { Integer sumOfWaiting ->
-                    println "Thread: ${Thread.currentThread().name}"
-                    println "waited for $sumOfWaiting"
-                    context.render "waited for $sumOfWaiting"
-                }
-            }
+        makeSomePromiseCalls().then { Integer sumOfWaiting ->
+            println "Thread: ${Thread.currentThread().name}"
+            println "waited for $sumOfWaiting"
+            context.render "waited for $sumOfWaiting"
         }
     }
 
