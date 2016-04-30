@@ -11,9 +11,9 @@ import rx.Observable
 @GrabExclude('org.codehaus.groovy:groovy-all')
 @Grab('org.slf4j:slf4j-simple:1.7.12')
 
-@Grab('io.ratpack:ratpack-groovy:1.3.0')
-@Grab('io.ratpack:ratpack-rx:1.3.0')
-@Grab('io.ratpack:ratpack-groovy-test:1.3.0')
+@Grab('io.ratpack:ratpack-groovy:1.3.3')
+@Grab('io.ratpack:ratpack-rx:1.3.3')
+@Grab('io.ratpack:ratpack-groovy-test:1.3.3')
 
 // stub application that sleeps for the number of seconds in the path you give it
 // ex: http://localhost:<port>/2  sleeps for 2 seconds before returning the value "2"
@@ -42,6 +42,10 @@ GroovyEmbeddedApp.of {
       HttpClient httpClient = context.get(HttpClient)
 
       println "Original thread: ${Thread.currentThread().name}"
+      Blocking.exec { ->
+        // blocking work happens here
+        println "Blocking thread: ${Thread.currentThread().name}"
+      }
 
       // default serial async version
       Observable.from(REQUEST_SLEEP_URIS)

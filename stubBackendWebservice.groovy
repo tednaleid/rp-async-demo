@@ -3,15 +3,11 @@ import ratpack.exec.Blocking
 
 @GrabResolver(name = 'jcenter', root = 'http://jcenter.bintray.com/')
 @GrabExclude('org.codehaus.groovy:groovy-all')
-@Grab('io.ratpack:ratpack-groovy:1.3.0')
+@Grab('io.ratpack:ratpack-groovy:1.3.3')
 @Grab('org.slf4j:slf4j-simple:1.7.12')
 import static ratpack.groovy.Groovy.ratpack
 
 ratpack {
-    serverConfig {
-        port 5150
-        development false
-    }
     handlers {
         get {
             render "Go to http://localhost:5150/2000 to sleep for 2 seconds"
