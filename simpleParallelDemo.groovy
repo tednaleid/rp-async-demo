@@ -41,12 +41,6 @@ GroovyEmbeddedApp.of {
     all { Context context ->
       HttpClient httpClient = context.get(HttpClient)
 
-      println "Original thread: ${Thread.currentThread().name}"
-      Blocking.exec { ->
-        // blocking work happens here
-        println "Blocking thread: ${Thread.currentThread().name}"
-      }
-
       // default serial async version
       Observable.from(REQUEST_SLEEP_URIS)
               .doOnNext { println "Async GET (${it}) thread: ${Thread.currentThread().name}" }
