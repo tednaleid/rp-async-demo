@@ -23,6 +23,10 @@ configurations {
 
 dependencies {
   runtime 'org.slf4j:slf4j-simple:1.7.12'
+//  compile 'org.asynchttpclient:async-http-client:2.0.6'
+//  compile 'org.asynchttpclient:async-http-client-extras-guava:2.0.6'
+  compile 'com.ning:async-http-client:1.9.36'
+  compile 'com.ning:async-http-client-extras-guava:1.9.36'
   testRuntime "cglib:cglib-nodep:2.2.2"
   testCompile "org.spockframework:spock-core:1.0-groovy-2.4"
   compile "org.apache.ivy:ivy:2.3.0" // needed to make running scripts in Intellij happy
