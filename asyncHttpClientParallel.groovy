@@ -19,6 +19,7 @@ import ratpack.test.embed.EmbeddedApp
 import rx.Observable
 import rx.functions.Func2
 import rx.plugins.RxJavaPlugins
+import rx.schedulers.Schedulers
 
 import static ratpack.groovy.Groovy.ratpack
 
@@ -120,17 +121,20 @@ ratpack {
             AsyncHttpClient asyncHttpClient = new AsyncHttpClient()
 
             // this was Promise.of in RP 1.2
-            Observable<String> first = Promise.async({ Downstream downstream ->
+            Observable<String> first = Promise
+                .async({ Downstream downstream ->
                     ListenableFuture<Response> future = asyncHttpClient.prepareGet(sleepForUrl(3)).execute()
                     downstream.accept(ListenableFutureAdapter.asGuavaFuture(future))
                 })
                 .observe().map { Response response -> "first: " + response.responseBody }
 
-            Observable<String> second = Promise.async({ Downstream downstream ->
+            Observable<String> second = Promise
+                .async({ Downstream downstream ->
                     ListenableFuture<Response> future = asyncHttpClient.prepareGet(sleepForUrl(2)).execute()
                     downstream.accept(ListenableFutureAdapter.asGuavaFuture(future))
                 })
                .observe().map { Response response -> "second: " + response.responseBody }
+
 
             Observable.zip(first, second, { String firstVal, String secondVal -> firstVal + " " + secondVal } as Func2)
                .subscribe({ String response ->

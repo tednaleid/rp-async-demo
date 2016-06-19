@@ -1,12 +1,17 @@
 #! /usr/bin/env groovy
+import com.naleid.PromisePair
 import ratpack.exec.Blocking
 import ratpack.exec.ExecInterceptor
 import ratpack.exec.Execution
+import ratpack.exec.Promise
 import ratpack.func.Action
 import ratpack.func.Block
+import ratpack.func.Pair
 import ratpack.groovy.test.embed.GroovyEmbeddedApp
 import ratpack.handling.Context
+import ratpack.http.Response
 import ratpack.http.client.HttpClient
+import ratpack.http.client.ReceivedResponse
 import ratpack.rx.RxRatpack
 import ratpack.service.Service
 import ratpack.service.StartEvent
@@ -94,40 +99,6 @@ ratpack {
     }
   }
 
-  // TODO make something like this that does a zip style action and uses generics
-  // from: https://github.com/ratpack/ratpack/blob/master/ratpack-core/src/main/java/ratpack/exec/batch/internal/DefaultParallelBatch.java#L54
-  /*
-
-    static method that takes Promise<T>, Promise<U> and yields a Promise<Pair<T, U>> which you could use `then` on
-
-    @Override
-  public Promise<List<? extends ExecResult<T>>> yieldAll() {
-    List<Promise<T>> promises = Lists.newArrayList(this.promises);
-    List<ExecResult<T>> results = Types.cast(promises);
-    AtomicInteger counter = new AtomicInteger(promises.size());
-
-    return Promise.async(d -> {
-      for (int i = 0; i < promises.size(); ++i) {
-        final int finalI = i;
-        //noinspection CodeBlock2Expr
-        Execution.fork()
-          .onStart(execInit)
-          .onComplete(e -> {
-            if (counter.decrementAndGet() == 0) {
-              d.success(results);
-            }
-          })
-          .start(e ->
-            promises.get(finalI).result(t -> {
-              results.set(finalI, t);
-            })
-          );
-      }
-    });
-
-  }
-   */
-
   handlers {
     all { Context context ->
       HttpClient httpClient = context.get(HttpClient)
@@ -139,20 +110,15 @@ ratpack {
 
       println "${Thread.currentThread().name} - $executionId - A. Original compute thread"
 
-      Observable<String> first = RxRatpack.observe(httpClient.get(sleepForUri(6))).map { 'first: ' + it.body.text }
-      Observable<String> second = RxRatpack.observe(httpClient.get(sleepForUri(3))).map { 'second: ' + it.body.text }
+      Promise<ReceivedResponse> firstCall = httpClient.get(sleepForUri(6))
+      Promise<ReceivedResponse> secondCall = httpClient.get(sleepForUri(3))
 
-//      Observable.zip( first, second, { String firstResult, String secondResult -> firstResult + secondResult } as Func2)
-//                .subscribeOn(Schedulers.io())
-      Observable.from([first, second])
-          .forkEach()
-          .flatMap { it }
-          .reduce("", { String acc, String val -> return acc + val } as Func2)
-          .bindExec()
-          .subscribe({ String response ->
-              println "${Thread.currentThread().name} - $executionId - C. Subscribe final result"
-              context.render response
-          })
+      Promise<Pair<ReceivedResponse, ReceivedResponse>> parallelCalls = PromisePair.parallel(firstCall, secondCall)
+
+      parallelCalls.then({ Pair<ReceivedResponse, ReceivedResponse> pair ->
+        println "${Thread.currentThread().name} - $executionId - C. Subscribe final result"
+        context.render([pair.left.body.text, pair.right.body.text].join(", "))
+      })
     }
   }
 }
