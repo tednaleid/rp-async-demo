@@ -3,7 +3,6 @@ import com.naleid.ObservableHandler
 import com.naleid.AppModule
 import com.naleid.ParallelObservableHandler
 import com.naleid.PromiseHandler
-import com.naleid.RetryHandler
 import ratpack.rx.RxRatpack
 import ratpack.service.StartEvent
 import ratpack.service.Service
@@ -32,6 +31,5 @@ ratpack {
         get "observableParallel", registry.get(ParallelObservableHandler)
         get "observable", registry.get(ObservableHandler)
         get "promise", registry.get(PromiseHandler)
-        get "retryGet", registry.get(RetryHandler) // hits stubFlakyBackend.groovy
     }
 }

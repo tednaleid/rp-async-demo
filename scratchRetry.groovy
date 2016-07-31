@@ -6,7 +6,6 @@ import ratpack.groovy.test.embed.GroovyEmbeddedApp
 import ratpack.handling.Context
 import ratpack.http.client.HttpClient
 import ratpack.http.client.ReceivedResponse
-import ratpack.rx.RxRatpack
 import ratpack.test.embed.EmbeddedApp
 import rx.Subscriber
 import rx.functions.Func1
@@ -25,22 +24,30 @@ import static ratpack.groovy.Groovy.ratpack
 @Grab('io.ratpack:ratpack-groovy-test:1.4.0-rc-2')
 @Grab('org.slf4j:slf4j-simple:1.7.12')
 
-// stub application that only returns a valid 200 response after :failFirst failed attempts
+// try 1000 requests where each one fails 4 times and succeeds on the 5th (retries wait 20ms, 40ms, 80ms, 160ms)
+// ab -n 1000 -c 10 http://localhost:5050/retryGet\?failUntil=5\&maxAttempts=5
+
+// try 1000 requests where each one fails just once (retries wait 20ms)
+// ab -n 1000 -c 10 http://localhost:5050/retryGet\?failUntil=2\&maxAttempts=2
+
+
+// stub application that only returns a valid 200 response on the :failUntil attempt
 // ex:
-// http://localhost:<port>/0 will always return a 200
-// http://localhost:<port>/1 will alternately 500 then 200
-// http://localhost:<port>/9 will only return 200 on after 9 other 500 calls
-AtomicInteger requestCounts = new AtomicInteger(0)
+// http://localhost:<port>/<uuid>/1 will always return a 200
+// http://localhost:<port>/<uuid>/2 will alternately 500 then 200
+// http://localhost:<port>/<uuid>/10 will only return 200 on after 9 other 500 calls<uuid>/
+Map<String, AtomicInteger> requestCountMap = [:].withDefault { key -> new AtomicInteger(1) }
 
 EmbeddedApp stubApp = GroovyEmbeddedApp.of {
   handlers {
-    get(":failFirst") {
-      Integer failFirst = context.pathTokens['failFirst'].toInteger() ?: 0
+    get(":requestId/:failUntil") {
+      Integer failUntil = context.pathTokens['failUntil'].toInteger() ?: 1
+      String requestId = context.pathTokens['requestId']
 
-      Integer currentAttempt = requestCounts.andIncrement
+      Integer currentAttempt = requestCountMap[requestId].andIncrement
 
-      if (currentAttempt >= failFirst) {
-        context.render "success on request attempt $currentAttempt as its >= $failFirst attempts that failed first"
+      if (currentAttempt >= failUntil) {
+        context.render "success on request attempt $currentAttempt as it is >= $failUntil required attempts for success"
       } else {
         context.clientError(500)
       }
@@ -51,6 +58,9 @@ EmbeddedApp stubApp = GroovyEmbeddedApp.of {
 //RxRatpack.initialize()   // the @Grab annotations force this to happen because of a groovy bug, no need here
 
 ratpack {
+  serverConfig {
+    development false
+  }
   bindings {
     bindInstance(new RetryHttpClient())
   }
@@ -59,19 +69,19 @@ ratpack {
     get("retryGet") { Context context ->
       RetryHttpClient retryHttpClient = context.get(RetryHttpClient)
 
-      String baseUri = "http://${stubApp.address.host}:${stubApp.address.port}/"
+      // add UUID in url so that we know we're retrying on an url that's unique to this retryGet request
+      String baseUri = "http://${stubApp.address.host}:${stubApp.address.port}/${UUID.randomUUID().toString()}/"
 
-      Integer failFirst = context.request.queryParams.failFirst?.toInteger() ?: 0
-      Integer maxRetries = context.request.queryParams.maxRetries?.toInteger() ?: 0
+      Integer failUntil = context.request.queryParams.failUntil?.toInteger() ?: 1
+      Integer maxAttempts = context.request.queryParams.maxAttempts?.toInteger() ?: 1
 
-      requestCounts.set(0)
-
-      URI uriThatFailsNTimesBeforeSucceeding = new URI(baseUri + failFirst.toString())
-      retryHttpClient.get(uriThatFailsNTimesBeforeSucceeding, maxRetries)
-                .subscribe { ReceivedResponse response ->
+      URI uriThatWillFailUntilNCalls = new URI(baseUri + failUntil.toString())
+      retryHttpClient.get(uriThatWillFailUntilNCalls, maxAttempts)
+                .map({ ReceivedResponse response -> response.body.text } as Func1)
+                .onErrorReturn { it.message }
+                .subscribe { String result ->
                     println Thread.currentThread().name
-                    String text = response.body.text
-                    context.render text
+                    context.render result
                 }
     }
   }
@@ -83,20 +93,21 @@ class RetryHttpClient {
   @Inject
   HttpClient httpClient
 
-  Observable<ReceivedResponse> get(URI uri, Integer maxRetries) {
-    retryHttpPromise(httpClient.get(uri), maxRetries)
+  Observable<ReceivedResponse> get(URI uri, Integer maxAttempts) {
+    retryHttpPromise(httpClient.get(uri), maxAttempts)
   }
 
-  Observable<ReceivedResponse> retryHttpPromise(Promise<ReceivedResponse> httpPromise, Integer maxRetries) {
+  Observable<ReceivedResponse> retryHttpPromise(Promise<ReceivedResponse> httpPromise, Integer maxAttempts) {
     Observable<ReceivedResponse> responseObservable = Observable.create({ Subscriber<ReceivedResponse> subscriber ->
       connectHttpPromiseToSubscriber(httpPromise, subscriber)
     } as Observable.OnSubscribe<ReceivedResponse>)
 
-    if (maxRetries <= 0) {
+    if (maxAttempts <= 1) {
       return responseObservable
     }
 
-    return responseObservable.retryWhen(this.&retryWithDecay.rcurry(maxRetries) as Func1)
+//    return responseObservable.retry(maxAttempts - 1)
+    return responseObservable.retryWhen(this.&retryWithDecay.rcurry(maxAttempts) as Func1)
   }
 
   private static void connectHttpPromiseToSubscriber(Promise<ReceivedResponse> httpPromise, Subscriber<ReceivedResponse> subscriber) {
@@ -104,7 +115,7 @@ class RetryHttpClient {
             .onError { Throwable t -> subscriber.onError(t) }
             .then { ReceivedResponse response ->
                 if (response.statusCode in 500..599) {
-                    subscriber.onError(new RetryableHttpException("${response.statusCode}"))
+                    subscriber.onError(new RetryableHttpException(response))
                 } else {
                     subscriber.onNext(response)
                     subscriber.onCompleted()
@@ -112,35 +123,55 @@ class RetryHttpClient {
             }
   }
 
-  Observable<Integer> retryWithDecay(Observable<Throwable> attemptErrors, Integer maxRetries) {
-    Integer retryAttempts = 0
+  Observable<Integer> retryWithDecay(Observable<Throwable> attemptErrors, Integer maxAttempts) {
+    Integer attempts = 0
 
     return attemptErrors.flatMap({ Throwable error ->
+      attempts += 1
 
-      retryAttempts += 1
-
-      if (retryAttempts > maxRetries || !(error instanceof RetryableHttpException)) {
-        log.warn("stoppedAtRetry: $retryAttempts", error)
+      if (!(error instanceof RetryableHttpException)) {
         return Observable.error(error)
       }
 
-      Long pauseMillis = (2 ** retryAttempts) * 10 as Long
-      log.warn("retryAttemptNumber: $retryAttempts, pauseMillis: ${pauseMillis}, lastError: ${error.message}")
+      ReceivedResponse response = (error as RetryableHttpException).response
+
+      if (attempts >= maxAttempts) {
+        log.warn("stoppedAtAttempt: $attempts")
+        return Observable.error(new ExhaustedHttpRetriesException(maxAttempts, response))
+      }
+
+      Long pauseMillis = (2 ** attempts) * 10 as Long
+      log.warn("attempts: $attempts, pauseMillis: ${pauseMillis}, lastStatusCode: ${response.statusCode}")
       Observable.timer(pauseMillis, TimeUnit.MILLISECONDS)
                 .bindExec()
-
     } as Func1)
   }
 }
 
 @CompileStatic
-class RetryableHttpException extends Exception {
-  RetryableHttpException(String message) {
-    super(message)
+class RetryableHttpException extends Throwable {
+  ReceivedResponse response
+  RetryableHttpException(ReceivedResponse response) {
+    this.response = response
   }
 
   @Override
   synchronized Throwable fillInStackTrace() {
-    return this
+    this
+  }
+}
+
+@CompileStatic
+class ExhaustedHttpRetriesException extends Exception {
+  ReceivedResponse response
+  Integer maxAttempts
+  ExhaustedHttpRetriesException(Integer maxAttempts, ReceivedResponse response) {
+    this.maxAttempts = maxAttempts
+    this.response = response
+  }
+
+  @Override
+  String getMessage() {
+    return "Exhausted ${maxAttempts} allowed retries, last status code: ${response.statusCode}"
   }
 }
